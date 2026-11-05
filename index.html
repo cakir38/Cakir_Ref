@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e27">
+<meta name="color-scheme" content="dark">
+<title>Çakır Referans Cihazı</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#0a0e27; --card:#121735; --card2:#1a2048; --line:rgba(255,255,255,.12);
+  --tx:#fff; --tx2:rgba(255,255,255,.76); --tx3:rgba(255,255,255,.56);
+  --heat:#ff6b6b; --hum:#4ecdc4; --ok:#10b981; --warn:#f59e0b; --err:#f87171; --acc:#a78bfa;
+  --nav:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+[hidden]{display:none !important}   /* .stack/.cta gibi display veren sınıflar hidden özniteliğini ezmesin */
+body{background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.4;display:flex;flex-direction:column;overflow:hidden}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--acc);outline-offset:2px}
+
+/* ---- üst çubuk ---- */
+header{display:flex;align-items:center;gap:12px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;background:var(--card);border-bottom:1px solid var(--line)}
+header h1{font-size:1.05rem;font-weight:700;letter-spacing:.3px;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chip{display:inline-flex;align-items:center;gap:8px;font-size:.85rem;color:var(--tx2);padding:6px 12px;border:1px solid var(--line);border-radius:999px;white-space:nowrap}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--tx3);flex:none}
+.dot.ok{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.dot.warn{background:var(--warn);animation:blink 1s infinite}
+.dot.err{background:var(--err)}
+@keyframes blink{50%{opacity:.35}}
+@media (prefers-reduced-motion:reduce){.dot.warn{animation:none}}
+
+/* ---- içerik ---- */
+main{flex:1;overflow-y:auto;overscroll-behavior:contain;padding:16px 16px calc(var(--nav) + 24px + env(safe-area-inset-bottom))}
+section[hidden]{display:none}
+.stack{display:grid;gap:14px;max-width:560px;margin:0 auto}
+.card{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:18px}
+.banner{border-radius:14px;padding:12px 14px;font-size:.92rem;border:1px solid}
+.banner.warn{background:rgba(245,158,11,.12);border-color:rgba(245,158,11,.5);color:#fde68a}
+.banner.err{background:rgba(248,113,113,.12);border-color:rgba(248,113,113,.5);color:#fecaca}
+.banner.info{background:rgba(167,139,250,.12);border-color:rgba(167,139,250,.45);color:#ddd6fe}
+
+.meas{display:grid;gap:4px}
+.meas .lbl{display:flex;align-items:center;gap:8px;font-size:.85rem;letter-spacing:2px;text-transform:uppercase;color:var(--tx2)}
+.meas .val{font-size:4.2rem;font-weight:800;line-height:1.05;font-variant-numeric:tabular-nums}
+.meas .val small{font-size:1.6rem;font-weight:600;color:var(--tx2);margin-left:4px}
+.meas.heat .val{color:var(--heat)} .meas.hum .val{color:var(--hum)}
+.meas.stale .val{color:var(--tx3)}
+.mm{display:flex;justify-content:space-between;gap:8px;margin-top:10px;padding-top:12px;border-top:1px solid var(--line);font-size:.95rem;color:var(--tx2)}
+.mm b{color:var(--tx);font-variant-numeric:tabular-nums}
+.mm .lo b{color:#87e5ff} .mm .hi b{color:#ffb366}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.kv{background:var(--card2);border-radius:14px;padding:12px 14px}
+.kv .k{font-size:.78rem;letter-spacing:1px;text-transform:uppercase;color:var(--tx3)}
+.kv .v{font-weight:700;margin-top:2px}
+.v.ok{color:var(--ok)} .v.warn{color:var(--warn)} .v.err{color:var(--err)}
+
+.cta{display:grid;gap:12px;text-align:center;padding:28px 18px}
+.cta p{color:var(--tx2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:0 20px;border-radius:14px;border:1px solid var(--line);background:var(--card2);font-weight:600}
+.btn.primary{background:linear-gradient(135deg,#7c6cf0,#a855f7);border:none}
+.btn.danger{border-color:rgba(248,113,113,.6);color:var(--err)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{min-height:44px;padding:0 14px;font-size:.92rem}
+.row{display:flex;gap:10px;flex-wrap:wrap}
+.row>.btn{flex:1}
+.linkbtn{background:none;border:none;color:var(--acc);text-decoration:underline;min-height:44px;padding:0 8px}
+
+/* ---- grafik ---- */
+.seg{display:inline-flex;background:var(--card2);border-radius:12px;padding:4px;gap:4px}
+.seg button{min-height:40px;min-width:64px;border:none;border-radius:9px;background:none;color:var(--tx2);font-weight:600}
+.seg button[aria-pressed=true]{background:#5b4fd6;color:#fff}
+.chartwrap{position:relative;height:300px;margin-top:12px;touch-action:pan-y}
+canvas{width:100%;height:100%;display:block}
+.tip{position:absolute;top:4px;left:50%;transform:translateX(-50%);background:rgba(10,14,39,.95);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:.85rem;pointer-events:none;white-space:nowrap}
+.legend{display:flex;gap:16px;font-size:.85rem;color:var(--tx2);margin-top:8px;flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+table.st{width:100%;border-collapse:collapse;font-size:.92rem;margin-top:6px}
+.st th,.st td{padding:8px 6px;text-align:right;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+.st th:first-child,.st td:first-child{text-align:left}
+.st th{color:var(--tx3);font-weight:600;font-size:.78rem;letter-spacing:1px;text-transform:uppercase}
+
+/* ---- ayarlar ---- */
+h2{font-size:1rem;margin-bottom:12px}
+.field{display:grid;gap:6px;margin-bottom:14px}
+.field label{font-size:.92rem;color:var(--tx2)}
+.field .hint{font-size:.8rem;color:var(--tx3)}
+.field input[type=number]{width:100%;min-height:48px;padding:0 14px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.3)}
+.field input[type=range]{width:100%;min-height:44px;accent-color:#a78bfa}
+.checks{display:grid;gap:4px}
+.checks label{display:flex;align-items:center;gap:12px;min-height:44px;font-size:.95rem}
+.checks input{width:22px;height:22px;accent-color:#a78bfa}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:48px}
+.sw input{width:22px;height:22px;accent-color:#a78bfa}
+
+/* ---- alt menü ---- */
+nav{position:fixed;left:0;right:0;bottom:0;height:calc(var(--nav) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);display:grid;grid-template-columns:repeat(4,1fr);background:var(--card);border-top:1px solid var(--line)}
+nav button{background:none;border:none;color:var(--tx3);display:grid;place-items:center;align-content:center;gap:2px;font-size:.78rem;font-weight:600}
+nav button svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+nav button[aria-selected=true]{color:#fff}
+nav button[aria-selected=true] svg{stroke:var(--acc)}
+
+#toast{position:fixed;left:16px;right:16px;bottom:calc(var(--nav) + 16px + env(safe-area-inset-bottom));max-width:520px;margin:0 auto;background:#25295a;border:1px solid var(--line);border-radius:14px;padding:12px 16px;box-shadow:0 8px 30px rgba(0,0,0,.5);opacity:0;transform:translateY(8px);transition:.2s;pointer-events:none;z-index:50}
+#toast.show{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){#toast{transition:none}}
+dialog{border:1px solid var(--line);border-radius:20px;background:var(--card);color:var(--tx);padding:20px;max-width:380px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.65)}
+dialog h3{margin-bottom:8px} dialog p{color:var(--tx2);margin-bottom:16px}
+code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px;font-size:.9em}
+@media (max-width:360px){.meas .val{font-size:3.4rem}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>ÇAKIR REFERANS</h1>
+  <span class="chip" id="stateChip" role="status"><span class="dot" id="stateDot"></span><span id="stateTxt">Bağlı değil</span></span>
+</header>
+
+<main id="main">
+
+  <!-- CANLI -->
+  <section id="v-live" class="stack" aria-labelledby="t-live">
+    <h2 id="t-live" style="display:none">Canlı ölçüm</h2>
+    <div id="demoBanner" class="banner info" hidden>DEMO MODU: gösterilen değerler gerçek değil, cihaz bağlı değil.</div>
+    <div id="supportBanner" class="banner warn" hidden></div>
+
+    <div id="cta" class="card cta">
+      <div style="font-size:2.4rem" aria-hidden="true">📡</div>
+      <h2 style="margin:0">Cihaza bağlan</h2>
+      <p>Referans cihazın açık ve yakında olduğundan emin olun. Bluetooth ve konum (Android şartı) açık olmalı.</p>
+      <button class="btn primary" id="btnConnect">Cihazı ara ve bağlan</button>
+      <button class="linkbtn" id="btnDemo">Cihaz olmadan dene (demo)</button>
+    </div>
+
+    <div id="liveBox" hidden class="stack" style="max-width:none;margin:0;width:100%">
+      <div id="lostBanner" class="banner err" hidden>Sensör bağlantı hatası: cihaz ölçüm alamıyor.</div>
+      <div id="staleBanner" class="banner warn" hidden>Veri gecikti, cihazdan yeni ölçüm gelmiyor.</div>
+
+      <div class="card meas heat" id="mTemp">
+        <div class="lbl"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>Sıcaklık</div>
+        <div class="val"><span id="tVal">--.-</span><small>°C</small></div>
+        <div class="mm"><span class="lo">Min <b id="tMin">--.-</b></span><span>Ort <b id="tAvg">--.-</b></span><span class="hi">Maks <b id="tMax">--.-</b></span></div>
+      </div>
+      <div class="card meas hum" id="mHum">
+        <div class="lbl"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 2.7s7 7.2 7 12a7 7 0 0 1-14 0c0-4.8 7-12 7-12z"/></svg>Nem</div>
+        <div class="val"><span id="hVal">--.-</span><small>%</small></div>
+        <div class="mm"><span class="lo">Min <b id="hMin">--.-</b></span><span>Ort <b id="hAvg">--.-</b></span><span class="hi">Maks <b id="hMax">--.-</b></span></div>
+      </div>
+
+      <div class="grid2">
+        <div class="kv"><div class="k">Sensör</div><div class="v" id="kvSensor">-</div></div>
+        <div class="kv"><div class="k">Cihaz saati</div><div class="v" id="kvTime">-</div></div>
+        <div class="kv"><div class="k">Kayıt</div><div class="v" id="kvHist">-</div></div>
+        <div class="kv"><div class="k">Son veri</div><div class="v" id="kvAge">-</div></div>
+      </div>
+      <button class="btn ghost" id="btnDisconnect">Bağlantıyı kes</button>
+    </div>
+  </section>
+
+  <!-- GRAFİK -->
+  <section id="v-graph" class="stack" hidden aria-labelledby="t-graph">
+    <div class="card">
+      <div class="row" style="align-items:center;justify-content:space-between">
+        <h2 id="t-graph" style="margin:0">Geçmiş</h2>
+        <div class="seg" role="group" aria-label="Aralık">
+          <button data-rng="10" aria-pressed="false">10 dk</button>
+          <button data-rng="20" aria-pressed="false">20 dk</button>
+          <button data-rng="30" aria-pressed="true">30 dk</button>
+        </div>
+      </div>
+      <div class="chartwrap"><canvas id="chart" role="img" aria-label="Sıcaklık ve nem geçmişi grafiği"></canvas><div class="tip" id="tip" hidden></div></div>
+      <div class="legend"><span><i style="background:var(--heat)"></i>Sıcaklık (sol eksen)</span><span><i style="background:var(--hum)"></i>Nem (sağ eksen)</span></div>
+      <p id="graphEmpty" class="banner info" style="margin-top:12px" hidden>Henüz yeterli kayıt yok. Cihaz her kayıt aralığında bir ortalama kaydeder.</p>
+    </div>
+    <div class="card">
+      <h2>Özet</h2>
+      <table class="st" aria-label="Özet tablo">
+        <tr><th></th><th>Min</th><th>Ort</th><th>Maks</th></tr>
+        <tr><td>Sıcaklık °C</td><td id="sTmin">-</td><td id="sTavg">-</td><td id="sTmax">-</td></tr>
+        <tr><td>Nem %</td><td id="sHmin">-</td><td id="sHavg">-</td><td id="sHmax">-</td></tr>
+      </table>
+      <div class="row" style="margin-top:14px">
+        <button class="btn sm" id="btnReloadHist">Geçmişi yenile</button>
+        <button class="btn sm" id="btnCsv">CSV indir</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- AYARLAR -->
+  <section id="v-set" class="stack" hidden aria-labelledby="t-set">
+    <div id="setLock" class="banner info" hidden>Ayarları görmek ve değiştirmek için önce cihaza bağlanın.</div>
+    <form id="setForm" class="card" novalidate>
+      <h2 id="t-set">Cihaz ayarları</h2>
+      <div class="field"><label for="fTemp">Sıcaklık ofseti (°C)</label><input id="fTemp" type="number" step="0.01" min="-5" max="5" inputmode="decimal"><span class="hint">−5 … +5</span></div>
+      <div class="field"><label for="fHum">Nem ofseti (%)</label><input id="fHum" type="number" step="0.1" min="-10" max="10" inputmode="decimal"><span class="hint">−10 … +10</span></div>
+      <div class="field"><label for="fBr">Ekran parlaklığı: <b id="fBrVal">100</b>%</label><input id="fBr" type="range" min="10" max="100" step="5"></div>
+      <div class="field"><label for="fSens">Sensör okuma aralığı (ms)</label><input id="fSens" type="number" step="250" min="250" max="60000" inputmode="numeric"><span class="hint">250 … 60000</span></div>
+      <div class="field"><label for="fOled">Ekran yenileme (ms)</label><input id="fOled" type="number" step="100" min="100" max="5000" inputmode="numeric"><span class="hint">100 … 5000</span></div>
+      <div class="field"><label for="fHist">Geçmiş kayıt aralığı (ms)</label><input id="fHist" type="number" step="1000" min="5000" max="3600000" inputmode="numeric"><span class="hint">5000 … 3600000 (60000 = 1 dk)</span></div>
+      <fieldset class="field" style="border:none"><legend style="font-size:.92rem;color:var(--tx2);margin-bottom:4px">Cihaz ekranında dönecek sayfalar</legend>
+        <div class="checks">
+          <label><input type="checkbox" id="fM0">Sıcaklık / nem (büyük rakam)</label>
+          <label><input type="checkbox" id="fM1">Dairesel gösterge</label>
+          <label><input type="checkbox" id="fM2">Grafik</label>
+          <label><input type="checkbox" id="fM3">Sistem durumu</label>
+        </div>
+      </fieldset>
+      <p id="setErr" class="banner err" hidden role="alert"></p>
+      <button class="btn primary" type="submit" id="btnSave" style="width:100%">Cihaza kaydet</button>
+      <p class="hint" style="font-size:.8rem;color:var(--tx3);margin-top:10px">Kaydederken Android eşleşme isteyebilir: cihaz ekranında görünen 6 haneli kodu girin. Bu bir kez yapılır.</p>
+    </form>
+    <div class="card">
+      <h2>Saat ve bakım</h2>
+      <div class="row">
+        <button class="btn sm" id="btnTime">Saati cihaza gönder</button>
+        <button class="btn sm" id="btnClear">Geçmişi temizle</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn sm" id="btnRestart">Yeniden başlat</button>
+        <button class="btn sm danger" id="btnFactory">Fabrika ayarı</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- BİLGİ -->
+  <section id="v-info" class="stack" hidden aria-labelledby="t-info">
+    <div class="card">
+      <h2 id="t-info">Bilgi</h2>
+      <div class="grid2">
+        <div class="kv"><div class="k">Cihaz</div><div class="v" id="iName">-</div></div>
+        <div class="kv"><div class="k">Yazılım</div><div class="v" id="iFw">-</div></div>
+        <div class="kv"><div class="k">Protokol</div><div class="v" id="iProto">-</div></div>
+        <div class="kv"><div class="k">Uygulama</div><div class="v" id="iApp"></div></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Tercihler</h2>
+      <label class="sw"><span>Ekran kapanmasın<br><small style="color:var(--tx3)">İzleme sırasında telefonun ekranını açık tutar</small></span><input type="checkbox" id="optWake"></label>
+    </div>
+    <div class="card" id="installCard" hidden>
+      <h2>Uygulamayı yükle</h2>
+      <p style="color:var(--tx2);margin-bottom:12px">Ana ekrana ekleyin, uygulama gibi açılsın ve internetsiz çalışsın.</p>
+      <button class="btn primary" id="btnInstall" style="width:100%">Ana ekrana ekle</button>
+    </div>
+    <div class="card">
+      <h2>Uyumluluk</h2>
+      <p id="compat" style="color:var(--tx2)"></p>
+    </div>
+  </section>
+</main>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="dlg"><h3 id="dlgT"></h3><p id="dlgP"></p><div class="row"><button class="btn" id="dlgNo">Vazgeç</button><button class="btn danger" id="dlgYes">Onayla</button></div></dialog>
+
+<nav role="tablist" aria-label="Sayfalar">
+  <button role="tab" data-tab="live" aria-selected="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg>Canlı</button>
+  <button role="tab" data-tab="graph" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg>Grafik</button>
+  <button role="tab" data-tab="set" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3h0a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5h0a1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8v0a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>Ayarlar</button>
+  <button role="tab" data-tab="info" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>Bilgi</button>
+</nav>
+
+<script>
+'use strict';
+/* =====================================================================
+   ÇAKIR REF – Telefon uygulaması (PWA, Web Bluetooth)
+   Protokol: PROTOKOL.md (sürüm 1). Tüm sayılar little-endian.
+   ===================================================================== */
+const APP_VER = '1.0.0', PROTO = 1;
+const U = n => `a1c0e00${n}-5f2b-4d6e-9c1a-0c4b1e5a7f01`;
+const SVC = U(0);
+const CH = { live: U(1), hist: U(2), sett: U(3), time: U(4), cmd: U(5), info: U(6) };
+const CMD = { restart: 1, clearHist: 2, factory: 3 };
+const LIMITS = { tempOff:[-5,5], humOff:[-10,10], sens:[250,60000], oled:[100,5000], hist:[5000,3600000], br:[10,100] };
+
+/* ---------- bayt ayrıştırma / kodlama (test edilebilir) ---------- */
+function parseLive(dv){
+  if (dv.byteLength < 10) throw new Error('LIVE verisi kısa');
+  const t = dv.getInt16(0, true), h = dv.getUint16(2, true), f = dv.getUint8(4);
+  return { temp: t === -32768 ? null : t/100, hum: h === 0xFFFF ? null : h/100,
+           sensor: !!(f&1), stable: !!(f&2), timeSynced: !!(f&4),
+           histCount: dv.getUint8(5), epoch: dv.getUint32(6, true) };
+}
+function parseHist(dv){
+  if (dv.byteLength < 12) throw new Error('HIST verisi kısa');
+  return { idx: dv.getUint8(0), total: dv.getUint8(1), t: dv.getUint32(2, true),
+           temp: dv.getInt16(6, true)/100, hum: dv.getUint16(8, true)/100,
+           q: dv.getUint8(10), n: dv.getUint8(11) };
+}
+function parseSett(dv){
+  if (dv.byteLength < 14) throw new Error('SETT verisi kısa');
+  return { tempOff: dv.getInt16(0, true)/100, humOff: dv.getInt16(2, true)/100,
+           sens: dv.getUint16(4, true), oled: dv.getUint16(6, true), hist: dv.getUint32(8, true),
+           br: dv.getUint8(12), mask: dv.getUint8(13) };
+}
+function encSett(s){
+  const b = new ArrayBuffer(16), dv = new DataView(b);
+  dv.setInt16(0, Math.round(s.tempOff*100), true); dv.setInt16(2, Math.round(s.humOff*100), true);
+  dv.setUint16(4, s.sens, true); dv.setUint16(6, s.oled, true); dv.setUint32(8, s.hist, true);
+  dv.setUint8(12, s.br); dv.setUint8(13, s.mask); dv.setUint16(14, 0, true);
+  return b;
+}
+function encTime(epoch, tzMin){
+  const b = new ArrayBuffer(6), dv = new DataView(b);
+  dv.setUint32(0, epoch >>> 0, true); dv.setInt16(4, tzMin, true);
+  return b;
+}
+const nowEpoch = () => Math.floor(Date.now()/1000);
+const tzMinutes = () => -new Date().getTimezoneOffset();
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+/* ---------- gerçek BLE bağlantısı ---------- */
+class BleLink {
+  constructor(h){
+    this.h = h; this.dev = null; this.c = {}; this.closing = false; this.name = '';
+    // Sabit işlev referansları: yeniden bağlanınca aynı karakteristiğe tekrar eklenirse tarayıcı çiftlemez
+    this.onLiveEv = e => { try { this.h.onLive(parseLive(e.target.value)); } catch (x) { console.warn(x); } };
+    this.onHistEv = e => { try { this.h.onHist(parseHist(e.target.value)); } catch (x) { console.warn(x); } };
+  }
+  static supported(){ return typeof navigator !== 'undefined' && !!navigator.bluetooth; }
+  async connect(){
+    this.closing = false;
+    this.dev = await navigator.bluetooth.requestDevice({
+      filters: [{ services: [SVC] }, { namePrefix: 'CAKIR_REF' }],
+      optionalServices: [SVC]
+    });
+    this.name = this.dev.name || 'CAKIR_REF';
+    this.dev.addEventListener('gattserverdisconnected', () => this._lost());
+    this.h.onState('connecting');
+    await this._open();
+  }
+  async _open(){
+    const srv = await this.dev.gatt.connect();
+    const s = await srv.getPrimaryService(SVC);
+    for (const k of Object.keys(CH)) this.c[k] = await s.getCharacteristic(CH[k]);
+    this.c.live.addEventListener('characteristicvaluechanged', this.onLiveEv);
+    this.c.hist.addEventListener('characteristicvaluechanged', this.onHistEv);
+    await this.c.hist.startNotifications();
+    await this.c.live.startNotifications();
+    this.h.onLive(parseLive(await this.c.live.readValue()));
+    this.h.onState('connected');
+  }
+  async _lost(){
+    if (this.closing) return;
+    this.h.onState('lost');
+    for (let i = 0; i < 8 && !this.closing; i++) {
+      await sleep(Math.min(1500 + i*1000, 6000));
+      if (this.closing) return;
+      try { await this._open(); return; } catch (e) { /* tekrar dene */ }
+    }
+    if (!this.closing) this.h.onState('disconnected');
+  }
+  disconnect(){ this.closing = true; try { this.dev && this.dev.gatt.connected && this.dev.gatt.disconnect(); } catch (e) {} this.h.onState('disconnected'); }
+  async readInfo(){ const dv = await this.c.info.readValue(); return new TextDecoder().decode(dv.buffer.slice(dv.byteOffset, dv.byteOffset + dv.byteLength)); }
+  async readSettings(){ return parseSett(await this.c.sett.readValue()); }
+  async writeSettings(s){ await this.c.sett.writeValueWithResponse(encSett(s)); }
+  async writeTime(){ await this.c.time.writeValueWithResponse(encTime(nowEpoch(), tzMinutes())); }
+  async command(n){ await this.c.cmd.writeValueWithResponse(Uint8Array.of(n)); }
+  async requestHistory(){ await this.c.hist.writeValueWithResponse(Uint8Array.of(1)); }
+}
+
+/* ---------- demo bağlantısı (cihaz olmadan deneme) ---------- */
+class DemoLink {
+  constructor(h){ this.h = h; this.timer = null; this.name = 'DEMO'; this.t = 22.4; this.hu = 46; this.hist = [];
+    this.set = { tempOff: 0, humOff: 0, sens: 1000, oled: 500, hist: 60000, br: 100, mask: 15 }; this.t0 = Date.now(); this.sync = false; }
+  async connect(){
+    this.h.onState('connecting'); await sleep(500);
+    const now = nowEpoch();
+    for (let i = 0; i < 30; i++) this.hist.push({ idx: i, total: 30, t: now - (29-i)*60, temp: 22 + Math.sin(i/4)*1.2 + Math.random()*.1, hum: 46 + Math.cos(i/5)*3, q: 0, n: 60 });
+    this.sync = true;
+    this.h.onState('connected');
+    this._tick(); this.timer = setInterval(() => this._tick(), 1000);
+  }
+  _tick(){
+    this.t += (Math.random() - .5) * .08; this.hu += (Math.random() - .5) * .3;
+    this.h.onLive({ temp: this.t + this.set.tempOff, hum: clamp(this.hu + this.set.humOff, 0, 100), sensor: true,
+      stable: Date.now() - this.t0 > 30000, timeSynced: this.sync, histCount: this.hist.length, epoch: nowEpoch() });
+  }
+  disconnect(){ clearInterval(this.timer); this.h.onState('disconnected'); }
+  async readInfo(){ return 'CAKIR_REF|DEMO|p1'; }
+  async readSettings(){ return { ...this.set }; }
+  async writeSettings(s){ this.set = { ...s }; }
+  async writeTime(){ this.sync = true; }
+  async command(n){ if (n === CMD.clearHist) this.hist = []; }
+  async requestHistory(){ const l = this.hist; if (!l.length) this.h.onHist({ idx: 0, total: 0, t: 0, temp: 0, hum: 0, q: 0, n: 0 });
+    for (const r of l) { await sleep(8); this.h.onHist({ ...r, total: l.length }); } }
+}
+
+/* ---------- uygulama durumu ---------- */
+const $ = id => document.getElementById(id);
+const S = { link: null, demo: false, state: 'disconnected', live: null, hist: [], histBuf: [], histTimer: null,
+            sett: null, setDirty: false, lastLiveAt: 0, rng: 30, lastHistCount: -1, info: '' };
+
+/* ---------- küçük yardımcılar ---------- */
+let toastTimer;
+function toast(msg, ms = 3500){ const t = $('toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), ms); }
+function ask(title, text){ return new Promise(res => { const d = $('dlg'); $('dlgT').textContent = title; $('dlgP').textContent = text;
+  const done = v => { d.close(); $('dlgYes').onclick = $('dlgNo').onclick = null; res(v); };
+  $('dlgYes').onclick = () => done(true); $('dlgNo').onclick = () => done(false); d.showModal(); }); }
+const f1 = v => (v == null || isNaN(v)) ? '--.-' : v.toFixed(1);
+const fmtTime = t => new Date(t*1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' });
+const hasClock = t => t >= 1000000000;
+
+function friendlyError(e){
+  const m = String(e && (e.message || e.name) || e);
+  if (/cancel/i.test(m)) return 'Bağlantı iptal edildi.';
+  if (/Insufficient|authent|encrypt|pair|0x05|0x0f/i.test(m)) return 'Eşleşme gerekli: telefonda çıkan pencereye cihaz ekranındaki 6 haneli kodu girin, sonra tekrar deneyin.';
+  if (/Network|disconnect|GATT/i.test(m)) return 'Cihaza ulaşılamadı. Yakında ve açık olduğundan emin olun.';
+  if (/NotAllowed|Security|permission/i.test(m)) return 'Bluetooth izni verilmedi veya kapalı.';
+  return 'Hata: ' + m;
+}
+
+/* ---------- sekmeler ---------- */
+function showTab(name){
+  for (const b of document.querySelectorAll('nav button')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
+  for (const n of ['live', 'graph', 'set', 'info']) $('v-' + n).hidden = (n !== name);
+  $('main').scrollTop = 0;
+  if (name === 'graph') drawChart();
+  try { history.replaceState(null, '', '#' + name); } catch (e) {}
+}
+for (const b of document.querySelectorAll('nav button')) b.addEventListener('click', () => showTab(b.dataset.tab));
+
+/* ---------- bağlantı durumu ---------- */
+const handlers = {
+  onState(st){
+    S.state = st; renderState();
+    if (st === 'connected') { $('toast').classList.remove('show'); afterConnect(); }
+    if (st === 'disconnected') { S.live = null; S.lastHistCount = -1; releaseWake(); }
+  },
+  onLive(d){
+    S.live = d; S.lastLiveAt = Date.now(); renderLive();
+    if (d.histCount !== S.lastHistCount) { S.lastHistCount = d.histCount; loadHistory(); }
+  },
+  onHist(r){
+    if (r.total === 0) { S.hist = []; S.histBuf = []; renderHist(); return; }
+    if (r.idx === 0) S.histBuf = [];
+    S.histBuf[r.idx] = r;
+    if (S.histBuf.filter(Boolean).length === r.total) { S.hist = S.histBuf.slice(); S.histBuf = []; renderHist(); }
+  }
+};
+
+function renderState(){
+  const map = { disconnected: ['', 'Bağlı değil'], connecting: ['warn', 'Bağlanıyor…'], connected: ['ok', S.demo ? 'Demo' : 'Bağlı'], lost: ['warn', 'Bağlantı koptu, aranıyor…'] };
+  const [cls, txt] = map[S.state] || map.disconnected;
+  $('stateDot').className = 'dot ' + cls; $('stateTxt').textContent = txt;
+  const on = S.state === 'connected' || S.state === 'lost';
+  $('cta').hidden = on; $('liveBox').hidden = !on;
+  $('demoBanner').hidden = !(S.demo && on);
+  const btnOk = BleLink.supported() && window.isSecureContext;
+  $('btnConnect').disabled = S.state === 'connecting' || !btnOk;
+  $('btnConnect').textContent = S.state === 'connecting' ? 'Bağlanıyor…' : 'Cihazı ara ve bağlan';
+  $('btnDemo').disabled = S.state === 'connecting';
+  $('setForm').style.opacity = on ? 1 : .5; $('setLock').hidden = on;
+  for (const el of $('setForm').querySelectorAll('input,button')) el.disabled = !on;
+  for (const id of ['btnTime', 'btnClear', 'btnRestart', 'btnFactory']) $(id).disabled = !on;
+  $('btnReloadHist').disabled = !on;
+}
+
+function renderLive(){
+  const d = S.live; if (!d) return;
+  const stale = Date.now() - S.lastLiveAt > 5000;
+  $('tVal').textContent = f1(d.temp); $('hVal').textContent = f1(d.hum);
+  $('mTemp').classList.toggle('stale', !d.sensor || d.temp == null); $('mHum').classList.toggle('stale', !d.sensor || d.hum == null);
+  $('lostBanner').hidden = d.sensor; $('staleBanner').hidden = !stale;
+  setKv('kvSensor', !d.sensor ? ['HATA', 'err'] : d.stable ? ['Stabil', 'ok'] : ['Stabilize oluyor', 'warn']);
+  setKv('kvTime', d.timeSynced && hasClock(d.epoch) ? [new Date(d.epoch*1000).toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }), 'ok'] : ['Ayarlı değil', 'warn']);
+  $('kvHist').textContent = d.histCount + ' / 30';
+  $('kvAge').textContent = 'şimdi'; $('kvAge').className = 'v ok';
+}
+function setKv(id, [txt, cls]){ const e = $(id); e.textContent = txt; e.className = 'v ' + cls; }
+setInterval(() => {
+  if (!S.live || S.state !== 'connected') return;
+  const s = Math.round((Date.now() - S.lastLiveAt)/1000);
+  $('kvAge').textContent = s < 2 ? 'şimdi' : s + ' sn önce'; $('kvAge').className = 'v ' + (s > 5 ? 'warn' : 'ok');
+  $('staleBanner').hidden = s <= 5;
+}, 1000);
+
+/* ---------- geçmiş ---------- */
+function loadHistory(){
+  if (!S.link) return;
+  clearTimeout(S.histTimer); S.histBuf = [];
+  S.link.requestHistory().catch(e => console.warn('geçmiş istenemedi', e));
+}
+function visibleHist(){
+  const logMs = (S.sett && S.sett.hist) || 60000;
+  const n = Math.max(1, Math.ceil(S.rng * 60000 / logMs));
+  return S.hist.slice(-n);
+}
+function stats(a, key){
+  if (!a.length) return null;
+  let mn = Infinity, mx = -Infinity, sum = 0;
+  for (const r of a) { mn = Math.min(mn, r[key]); mx = Math.max(mx, r[key]); sum += r[key]; }
+  return { min: mn, max: mx, avg: sum/a.length };
+}
+function renderHist(){
+  const all = stats(S.hist, 'temp'), allH = stats(S.hist, 'hum');
+  $('tMin').textContent = f1(all && all.min); $('tMax').textContent = f1(all && all.max); $('tAvg').textContent = f1(all && all.avg);
+  $('hMin').textContent = f1(allH && allH.min); $('hMax').textContent = f1(allH && allH.max); $('hAvg').textContent = f1(allH && allH.avg);
+  const v = visibleHist(), st = stats(v, 'temp'), sh = stats(v, 'hum');
+  $('sTmin').textContent = f1(st && st.min); $('sTavg').textContent = f1(st && st.avg); $('sTmax').textContent = f1(st && st.max);
+  $('sHmin').textContent = f1(sh && sh.min); $('sHavg').textContent = f1(sh && sh.avg); $('sHmax').textContent = f1(sh && sh.max);
+  $('graphEmpty').hidden = v.length >= 2;
+  drawChart();
+}
+for (const b of document.querySelectorAll('.seg button')) b.addEventListener('click', () => {
+  S.rng = +b.dataset.rng; for (const x of document.querySelectorAll('.seg button')) x.setAttribute('aria-pressed', String(x === b)); renderHist();
+});
+
+/* ---------- grafik (kendi çizimimiz: kütüphane gerekmez, internetsiz çalışır) ---------- */
+let chartGeo = null, hoverIdx = -1;
+function drawChart(){
+  const cv = $('chart'); if (!cv || $('v-graph').hidden) return;
+  const dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = cv.clientHeight;
+  if (!W || !H) return;
+  cv.width = Math.round(W*dpr); cv.height = Math.round(H*dpr);
+  const g = cv.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H);
+  const v = visibleHist(); chartGeo = null;
+  const L = 38, R = 38, T = 12, B = 26, iw = W - L - R, ih = H - T - B;
+  g.font = '12px system-ui,sans-serif'; g.textBaseline = 'middle';
+  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 1; g.setLineDash([4, 5]);
+  for (let k = 0; k <= 4; k++) { const y = T + ih*k/4; g.beginPath(); g.moveTo(L, y); g.lineTo(W - R, y); g.stroke(); }
+  g.setLineDash([]);
+  if (v.length < 2) { g.fillStyle = 'rgba(255,255,255,.56)'; g.textAlign = 'center'; g.fillText('Yetersiz veri', W/2, H/2); return; }
+  const rng = (key, pad) => { let a = Math.min(...v.map(r => r[key])), b = Math.max(...v.map(r => r[key]));
+    if (b - a < 1) { a -= pad; b += pad; } return [a, b]; };
+  const [t0, t1] = rng('temp', .5), [h0, h1] = rng('hum', 1);
+  const X = i => L + iw*i/(v.length - 1);
+  const Yt = r => T + ih*(1 - (r.temp - t0)/(t1 - t0)), Yh = r => T + ih*(1 - (r.hum - h0)/(h1 - h0));
+  const line = (Y, col) => { g.strokeStyle = col; g.lineWidth = 2.5; g.lineJoin = 'round'; g.beginPath();
+    v.forEach((r, i) => i ? g.lineTo(X(i), Y(r)) : g.moveTo(X(i), Y(r))); g.stroke();
+    const lx = X(v.length - 1), ly = Y(v[v.length - 1]); g.fillStyle = col; g.beginPath(); g.arc(lx, ly, 4, 0, 7); g.fill(); };
+  line(Yt, '#ff6b6b'); line(Yh, '#4ecdc4');
+  g.fillStyle = '#ff6b6b'; g.textAlign = 'right';
+  for (let k = 0; k <= 4; k++) g.fillText((t1 - (t1 - t0)*k/4).toFixed(1), L - 6, T + ih*k/4);
+  g.fillStyle = '#4ecdc4'; g.textAlign = 'left';
+  for (let k = 0; k <= 4; k++) g.fillText((h1 - (h1 - h0)*k/4).toFixed(0), W - R + 6, T + ih*k/4);
+  g.fillStyle = 'rgba(255,255,255,.7)'; g.textBaseline = 'alphabetic';
+  const lab = r => hasClock(r.t) ? fmtTime(r.t) : '#' + (r.idx + 1);
+  g.textAlign = 'left'; g.fillText(lab(v[0]), L, H - 6);
+  g.textAlign = 'center'; g.fillText(lab(v[Math.floor((v.length - 1)/2)]), L + iw/2, H - 6);
+  g.textAlign = 'right'; g.fillText(lab(v[v.length - 1]), W - R, H - 6);
+  if (hoverIdx >= 0 && hoverIdx < v.length) {
+    const x = X(hoverIdx); g.strokeStyle = 'rgba(255,255,255,.5)'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, T); g.lineTo(x, T + ih); g.stroke();
+    for (const [Y, c] of [[Yt, '#ff6b6b'], [Yh, '#4ecdc4']]) { g.fillStyle = c; g.beginPath(); g.arc(x, Y(v[hoverIdx]), 5, 0, 7); g.fill(); }
+  }
+  chartGeo = { v, L, iw, X };
+}
+function hover(ev){
+  if (!chartGeo) return;
+  const rect = $('chart').getBoundingClientRect(), x = ev.clientX - rect.left, { v, L, iw } = chartGeo;
+  const i = clamp(Math.round((x - L)/iw*(v.length - 1)), 0, v.length - 1);
+  hoverIdx = i; const r = v[i], tip = $('tip');
+  tip.hidden = false; tip.textContent = `${hasClock(r.t) ? fmtTime(r.t) : '#' + (r.idx + 1)}  ${r.temp.toFixed(2)} °C  ${r.hum.toFixed(1)} %`;
+  drawChart();
+}
+function clearHover(){ hoverIdx = -1; $('tip').hidden = true; drawChart(); }
+$('chart').addEventListener('pointerdown', hover);
+$('chart').addEventListener('pointermove', e => { if (e.pressure > 0 || e.pointerType === 'mouse') hover(e); });
+$('chart').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') clearHover(); });   // dokunmatikte parmak kalkınca ipucu kalır
+document.addEventListener('pointerdown', e => { if (e.target !== $('chart') && hoverIdx >= 0) clearHover(); });   // başka yere dokununca kapanır
+window.addEventListener('resize', drawChart);
+
+/* ---------- CSV ---------- */
+function exportCsv(){
+  if (!S.hist.length) { toast('Dışa aktarılacak kayıt yok.'); return; }
+  const dec = v => v.toFixed(2).replace('.', ',');   // Türkçe Excel: ondalık virgül, ayırıcı noktalı virgül
+  let csv = '﻿Zaman;Sicaklik (C);Nem (%);Kalite\n';
+  for (const r of S.hist) csv += `${hasClock(r.t) ? new Date(r.t*1000).toLocaleString('tr-TR') : 'acilistan ' + r.t + ' sn'};${dec(r.temp)};${dec(r.hum)};${r.q}\n`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = 'CAKIR_REF_' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ---------- ayarlar ---------- */
+function fillForm(s){
+  $('fTemp').value = s.tempOff; $('fHum').value = s.humOff; $('fBr').value = s.br; $('fBrVal').textContent = s.br;
+  $('fSens').value = s.sens; $('fOled').value = s.oled; $('fHist').value = s.hist;
+  for (let i = 0; i < 4; i++) $('fM' + i).checked = !!(s.mask & (1 << i));
+  S.setDirty = false; $('setErr').hidden = true;
+}
+function readForm(){
+  const num = id => $(id).value === '' ? NaN : Number($(id).value);
+  const errs = [];
+  const chk = (v, [lo, hi], name) => { if (isNaN(v) || v < lo || v > hi) errs.push(`${name}: ${lo} ile ${hi} arasında olmalı`); };
+  const s = { tempOff: num('fTemp'), humOff: num('fHum'), sens: Math.round(num('fSens')), oled: Math.round(num('fOled')),
+              hist: Math.round(num('fHist')), br: Math.round(num('fBr')), mask: 0 };
+  chk(s.tempOff, LIMITS.tempOff, 'Sıcaklık ofseti'); chk(s.humOff, LIMITS.humOff, 'Nem ofseti'); chk(s.sens, LIMITS.sens, 'Sensör aralığı');
+  chk(s.oled, LIMITS.oled, 'Ekran yenileme'); chk(s.hist, LIMITS.hist, 'Kayıt aralığı'); chk(s.br, LIMITS.br, 'Parlaklık');
+  for (let i = 0; i < 4; i++) if ($('fM' + i).checked) s.mask |= (1 << i);
+  if (!s.mask) errs.push('En az bir ekran sayfası seçili olmalı');
+  return { s, errs };
+}
+$('setForm').addEventListener('input', e => { S.setDirty = true; if (e.target.id === 'fBr') $('fBrVal').textContent = e.target.value; });
+$('setForm').addEventListener('submit', async ev => {
+  ev.preventDefault(); const { s, errs } = readForm(), box = $('setErr');
+  if (errs.length) { box.textContent = errs.join(' • '); box.hidden = false; return; }
+  box.hidden = true; $('btnSave').disabled = true;
+  try { await S.link.writeSettings(s); S.sett = s; S.setDirty = false; toast('Ayarlar cihaza kaydedildi.'); renderHist(); }
+  catch (e) { box.textContent = friendlyError(e); box.hidden = false; }
+  finally { $('btnSave').disabled = false; }
+});
+async function guarded(fn, okMsg){ try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(friendlyError(e), 6000); } }
+$('btnTime').onclick = () => guarded(() => S.link.writeTime(), 'Telefonun saati cihaza gönderildi.');
+$('btnClear').onclick = async () => { if (await ask('Geçmiş silinsin mi?', 'Cihazdaki tüm kayıtlar silinir.')) guarded(async () => { await S.link.command(CMD.clearHist); S.hist = []; renderHist(); }, 'Geçmiş temizlendi.'); };
+$('btnRestart').onclick = async () => { if (await ask('Cihaz yeniden başlatılsın mı?', 'Bağlantı kısa süre kopacak, uygulama yeniden bağlanmayı dener.')) guarded(() => S.link.command(CMD.restart), 'Yeniden başlatma gönderildi.'); };
+$('btnFactory').onclick = async () => { if (await ask('Fabrika ayarına dönülsün mü?', 'Tüm ayarlar ve kalibrasyon sıfırlanır. Bu işlem geri alınamaz.')) guarded(() => S.link.command(CMD.factory), 'Fabrika ayarı gönderildi.'); };
+$('btnCsv').onclick = exportCsv;
+$('btnReloadHist').onclick = () => { loadHistory(); toast('Geçmiş isteniyor…', 1500); };
+
+/* ---------- bağlan / kes ---------- */
+async function afterConnect(){
+  try { S.info = await S.link.readInfo(); } catch (e) { S.info = ''; }
+  try { S.sett = await S.link.readSettings(); if (!S.setDirty) fillForm(S.sett); } catch (e) { console.warn('ayarlar okunamadı', e); }
+  try { await S.link.writeTime(); } catch (e) { console.warn('saat yazılamadı', e); }
+  renderInfo(); loadHistory();
+  if ($('optWake').checked) requestWake();
+}
+function renderInfo(){
+  const p = (S.info || '').split('|');
+  $('iName').textContent = (S.link && S.link.name) || '-'; $('iFw').textContent = p[1] || '-';
+  $('iProto').textContent = p[2] ? p[2].replace(/^p/, 'v') + (+p[2].replace(/\D/g, '') === PROTO ? '' : ' (uygulama v' + PROTO + ')') : '-';
+}
+async function startLink(demo){
+  if (S.link) { try { S.link.disconnect(); } catch (e) {} }
+  S.demo = demo; S.hist = []; S.sett = null; S.lastHistCount = -1;
+  S.link = demo ? new DemoLink(handlers) : new BleLink(handlers);
+  try { await S.link.connect(); }
+  catch (e) { S.link = null; handlers.onState('disconnected'); const m = friendlyError(e); if (!/iptal/.test(m)) toast(m, 6000); else toast(m); }
+}
+$('btnConnect').onclick = () => startLink(false);
+$('btnDemo').onclick = () => startLink(true);
+$('btnDisconnect').onclick = () => { if (S.link) S.link.disconnect(); S.link = null; };
+
+/* ---------- ekran açık kalsın ---------- */
+let wake = null;
+async function requestWake(){ try { if ('wakeLock' in navigator && !wake) { wake = await navigator.wakeLock.request('screen'); wake.addEventListener('release', () => { wake = null; }); } } catch (e) {} }
+function releaseWake(){ try { wake && wake.release(); } catch (e) {} wake = null; }
+$('optWake').addEventListener('change', e => { try { localStorage.setItem('wake', e.target.checked ? '1' : '0'); } catch (x) {} e.target.checked && S.state === 'connected' ? requestWake() : releaseWake(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && $('optWake').checked && S.state === 'connected') requestWake(); });
+try { $('optWake').checked = localStorage.getItem('wake') === '1'; } catch (e) {}
+
+/* ---------- yükleme / uyumluluk / PWA ---------- */
+$('iApp').textContent = 'v' + APP_VER;
+(function compat(){
+  const ok = BleLink.supported(), sec = window.isSecureContext;
+  const ua = navigator.userAgent, android = /Android/i.test(ua), chrome = /Chrome\//.test(ua) && !/(Edg|OPR|SamsungBrowser)/.test(ua);
+  let msg;
+  if (!sec) msg = 'Bu sayfa güvenli (HTTPS) bağlantıyla açılmadığı için Bluetooth kullanılamaz.';
+  else if (!ok) msg = /iPhone|iPad/.test(ua) ? 'iPhone/iPad tarayıcıları Web Bluetooth desteklemez. Android\'de Chrome kullanın.' : 'Bu tarayıcı Web Bluetooth desteklemiyor. Android\'de Chrome kullanın.';
+  else msg = 'Web Bluetooth kullanılabilir' + (android && chrome ? ' (Android Chrome).' : '. En iyi sonuç için Android Chrome önerilir.');
+  $('compat').textContent = msg;
+  if (!ok || !sec) { const b = $('supportBanner'); b.textContent = msg + ' Demo modu yine de çalışır.'; b.hidden = false; $('btnConnect').disabled = true; }
+})();
+let deferredInstall = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); deferredInstall = e; $('installCard').hidden = false; });
+$('btnInstall').onclick = async () => { if (!deferredInstall) return; deferredInstall.prompt(); await deferredInstall.userChoice; deferredInstall = null; $('installCard').hidden = true; };
+window.addEventListener('appinstalled', () => { $('installCard').hidden = true; toast('Uygulama yüklendi.'); });
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW kaydı olmadı', e));
+
+renderState();
+{ const h = (location.hash || '').slice(1); showTab(['live', 'graph', 'set', 'info'].includes(h) ? h : 'live'); }
+window.__app = { S, parseLive, parseHist, parseSett, encSett, encTime, BleLink, SVC, CH, handlers };
+</script>
+</body>
+</html>
