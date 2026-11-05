@@ -27,6 +27,7 @@ açılması gerekir (Chrome şartı), bu yüzden dosyaları ücretsiz bir HTTPS 
 - **Cihazı ara ve bağlan** → listeden `CAKIR_REF…` seçin.
 - İlk **ayar kaydında** Android eşleşme penceresi açar: cihaz ekranındaki 6 haneli kodu girin (bir kez).
 - Bağlanınca uygulama telefonun saatini cihaza otomatik gönderir (internetsiz ortamda saat sorunu böylece çözülür).
+- **Grafik** sekmesindeki **PDF indir** düğmesi özet, grafik ve tüm kayıtları A4 PDF raporu olarak telefona indirir (internet gerekmez).
 - **Cihaz olmadan dene (demo)** ile uygulamayı cihaz bağlamadan gezebilirsiniz.
 
 ## Bilinen sınırlar
@@ -38,5 +39,5 @@ açılması gerekir (Chrome şartı), bu yüzden dosyaları ücretsiz bir HTTPS 
   uyacak şekilde ayrıca yazılacaktır. O zamana kadar uygulama **demo modunda** denenebilir.
 
 ## Güncelleme
-Dosyaları değiştirdiğinizde `sw.js` içindeki `VERSION` değerini (örn. `cakir-ref-v1.0.1`) artırın;
+Dosyaları değiştirdiğinizde `sw.js` içindeki `VERSION` değerini (örn. `cakir-ref-v1.1.1`) artırın;
 telefon yeni sürümü bir sonraki internetli açılışta alır.

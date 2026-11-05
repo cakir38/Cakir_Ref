@@ -188,7 +188,7 @@ code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px;font-siz
       </table>
       <div class="row" style="margin-top:14px">
         <button class="btn sm" id="btnReloadHist">Geçmişi yenile</button>
-        <button class="btn sm" id="btnCsv">CSV indir</button>
+        <button class="btn sm" id="btnPdf">PDF indir</button>
       </div>
     </div>
   </section>
@@ -273,7 +273,7 @@ code{background:rgba(255,255,255,.08);padding:1px 6px;border-radius:6px;font-siz
    ÇAKIR REF – Telefon uygulaması (PWA, Web Bluetooth)
    Protokol: PROTOKOL.md (sürüm 1). Tüm sayılar little-endian.
    ===================================================================== */
-const APP_VER = '1.0.0', PROTO = 1;
+const APP_VER = '1.1.0', PROTO = 1;
 const U = n => `a1c0e00${n}-5f2b-4d6e-9c1a-0c4b1e5a7f01`;
 const SVC = U(0);
 const CH = { live: U(1), hist: U(2), sett: U(3), time: U(4), cmd: U(5), info: U(6) };
@@ -568,15 +568,144 @@ $('chart').addEventListener('pointerleave', e => { if (e.pointerType === 'mouse'
 document.addEventListener('pointerdown', e => { if (e.target !== $('chart') && hoverIdx >= 0) clearHover(); });   // başka yere dokununca kapanır
 window.addEventListener('resize', drawChart);
 
-/* ---------- CSV ---------- */
-function exportCsv(){
-  if (!S.hist.length) { toast('Dışa aktarılacak kayıt yok.'); return; }
-  const dec = v => v.toFixed(2).replace('.', ',');   // Türkçe Excel: ondalık virgül, ayırıcı noktalı virgül
-  let csv = '﻿Zaman;Sicaklik (C);Nem (%);Kalite\n';
-  for (const r of S.hist) csv += `${hasClock(r.t) ? new Date(r.t*1000).toLocaleString('tr-TR') : 'acilistan ' + r.t + ' sn'};${dec(r.temp)};${dec(r.hum)};${r.q}\n`;
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = 'CAKIR_REF_' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+/* ---------- PDF rapor ----------
+   Kütüphane yok, internet gerekmez: sayfalar A4 oranında tuvale çizilir (Türkçe karakterler telefonun
+   kendi yazı tipiyle sorunsuz çıkar), JPEG olarak basit bir PDF dosyasına konur ve indirilir. */
+const dec2 = v => v.toFixed(2).replace('.', ',');
+const dec1 = v => v.toFixed(1).replace('.', ',');
+const recTime = r => hasClock(r.t) ? new Date(r.t*1000).toLocaleString('tr-TR') : 'açılıştan ' + r.t + ' sn';
+
+function drawReportChart(g, x, y, w, h, v){
+  const L = 64, R = 64, T = 16, B = 40, iw = w - L - R, ih = h - T - B;
+  g.save(); g.translate(x, y);
+  g.fillStyle = '#fafafa'; g.fillRect(0, 0, w, h); g.strokeStyle = '#d0d0d0'; g.lineWidth = 1; g.strokeRect(.5, .5, w - 1, h - 1);
+  g.font = '20px system-ui,Roboto,Arial,sans-serif'; g.textBaseline = 'middle';
+  g.strokeStyle = '#dddddd'; g.setLineDash([6, 7]);
+  for (let k = 0; k <= 4; k++) { const yy = T + ih*k/4; g.beginPath(); g.moveTo(L, yy); g.lineTo(w - R, yy); g.stroke(); }
+  g.setLineDash([]);
+  if (v.length < 2) { g.fillStyle = '#777'; g.textAlign = 'center'; g.fillText('Grafik için yetersiz veri', w/2, h/2); g.restore(); return; }
+  const span = (key, pad) => { let a = Math.min(...v.map(r => r[key])), b = Math.max(...v.map(r => r[key])); if (b - a < 1) { a -= pad; b += pad; } return [a, b]; };
+  const [t0, t1] = span('temp', .5), [h0, h1] = span('hum', 1);
+  const X = i => L + iw*i/(v.length - 1);
+  const Yt = r => T + ih*(1 - (r.temp - t0)/(t1 - t0)), Yh = r => T + ih*(1 - (r.hum - h0)/(h1 - h0));
+  const CT = '#d62f2f', CH = '#0e8f86';
+  const line = (Y, col) => { g.strokeStyle = col; g.lineWidth = 3.5; g.lineJoin = 'round'; g.beginPath();
+    v.forEach((r, i) => i ? g.lineTo(X(i), Y(r)) : g.moveTo(X(i), Y(r))); g.stroke(); };
+  line(Yt, CT); line(Yh, CH);
+  g.fillStyle = CT; g.textAlign = 'right';
+  for (let k = 0; k <= 4; k++) g.fillText(dec1(t1 - (t1 - t0)*k/4), L - 8, T + ih*k/4);
+  g.fillStyle = CH; g.textAlign = 'left';
+  for (let k = 0; k <= 4; k++) g.fillText((h1 - (h1 - h0)*k/4).toFixed(0), w - R + 8, T + ih*k/4);
+  g.fillStyle = '#555'; g.textBaseline = 'alphabetic';
+  const lab = r => hasClock(r.t) ? fmtTime(r.t) : '#' + (r.idx + 1);
+  g.textAlign = 'left'; g.fillText(lab(v[0]), L, h - 10);
+  g.textAlign = 'center'; g.fillText(lab(v[Math.floor((v.length - 1)/2)]), L + iw/2, h - 10);
+  g.textAlign = 'right'; g.fillText(lab(v[v.length - 1]), w - R, h - 10);
+  g.restore();
+}
+
+function buildReportPages(){
+  const PW = 1240, PH = 1754, M = 90, FOOT = 60, pages = [];
+  const F = (px, wt = '') => `${wt} ${px}px system-ui,Roboto,"Segoe UI",Arial,sans-serif`.trim();
+  let cv, g, y;
+  const newPage = () => { cv = document.createElement('canvas'); cv.width = PW; cv.height = PH; g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, PW, PH); g.textBaseline = 'alphabetic'; pages.push(cv); y = M; };
+  const text = (s, x, yy, font, col, align = 'left') => { g.font = font; g.fillStyle = col; g.textAlign = align; g.fillText(s, x, yy); };
+  const need = h => { if (y + h > PH - M - FOOT) newPage(); };
+  const hist = S.hist, st = stats(hist, 'temp'), sh = stats(hist, 'hum');
+
+  newPage();
+  text('Çakır Referans Cihazı', M, y + 38, F(46, 'bold'), '#111'); y += 62;
+  text('Sıcaklık ve nem ölçüm raporu', M, y + 24, F(28), '#444'); y += 50;
+  g.fillStyle = '#111'; g.fillRect(M, y, PW - 2*M, 3); y += 34;
+  const meta = [['Oluşturma', new Date().toLocaleString('tr-TR')],
+                ['Cihaz', S.demo ? 'Demo (gerçek cihaz değil)' : (S.info || '-')],
+                ['Kayıt sayısı', String(hist.length)],
+                ['Dönem', hasClock(hist[0].t) && hasClock(hist[hist.length - 1].t) ? recTime(hist[0]) + '  –  ' + recTime(hist[hist.length - 1]) : 'Cihaz saati ayarlı değildi (açılıştan geçen süre)']];
+  if (S.sett) meta.push(['Ofset', `Sıcaklık ${dec2(S.sett.tempOff)} °C, nem ${dec2(S.sett.humOff)} %`]);
+  for (const [k, val] of meta) { text(k, M, y + 24, F(24), '#666'); text(val, M + 230, y + 24, F(24), '#111'); y += 40; }
+  if (S.demo) { y += 6; text('DİKKAT: Bu rapor demo verisiyle oluşturuldu, gerçek ölçüm değildir.', M, y + 26, F(26, 'bold'), '#b3261e'); y += 44; }
+  y += 22;
+
+  // özet
+  need(190); text('Özet', M, y + 30, F(32, 'bold'), '#111'); y += 52;
+  const cols = [M + 300, M + 520, M + 740], cw = PW - 2*M;
+  g.fillStyle = '#f0f0f0'; g.fillRect(M, y, cw, 44);
+  ['Min', 'Ort', 'Maks'].forEach((s, i) => text(s, cols[i], y + 30, F(24, 'bold'), '#111', 'right'));
+  y += 44;
+  for (const [name, s, col, fn] of [['Sıcaklık (°C)', st, '#d62f2f', dec2], ['Nem (%)', sh, '#0e8f86', dec1]]) {
+    text(name, M + 14, y + 32, F(26), col);
+    [s.min, s.avg, s.max].forEach((val, i) => text(fn(val), cols[i], y + 32, F(26), '#111', 'right')); y += 46;
+    g.fillStyle = '#ddd'; g.fillRect(M, y - 1, cw, 1);
+  }
+  y += 36;
+
+  // grafik
+  need(600); text('Grafik', M, y + 30, F(32, 'bold'), '#111'); y += 52;
+  drawReportChart(g, M, y, cw, 480, hist); y += 480 + 14;
+  g.fillStyle = '#d62f2f'; g.fillRect(M + 64, y + 6, 26, 8); text('Sıcaklık (sol eksen)', M + 100, y + 18, F(22), '#333');
+  g.fillStyle = '#0e8f86'; g.fillRect(M + 420, y + 6, 26, 8); text('Nem (sağ eksen)', M + 456, y + 18, F(22), '#333');
+  y += 56;
+
+  // tablo
+  const RH = 40, tcol = { n: M + 60, t: M + 120, T: M + 700, H: M + 880, q: M + 1060 };
+  const head = () => { g.fillStyle = '#f0f0f0'; g.fillRect(M, y, cw, RH);
+    text('#', tcol.n, y + 28, F(22, 'bold'), '#111', 'right'); text('Zaman', tcol.t, y + 28, F(22, 'bold'), '#111');
+    text('Sıcaklık °C', tcol.T, y + 28, F(22, 'bold'), '#111', 'right'); text('Nem %', tcol.H, y + 28, F(22, 'bold'), '#111', 'right');
+    text('Kalite', tcol.q, y + 28, F(22, 'bold'), '#111', 'right'); y += RH; };
+  need(52 + RH*3); text('Kayıtlar', M, y + 30, F(32, 'bold'), '#111'); y += 52; head();
+  hist.forEach((r, i) => {
+    if (y + RH > PH - M - FOOT) { newPage(); head(); }
+    if (i % 2) { g.fillStyle = '#f8f8f8'; g.fillRect(M, y, cw, RH); }
+    text(String(i + 1), tcol.n, y + 28, F(22), '#666', 'right'); text(recTime(r), tcol.t, y + 28, F(22), '#111');
+    text(dec2(r.temp), tcol.T, y + 28, F(22), '#111', 'right'); text(dec1(r.hum), tcol.H, y + 28, F(22), '#111', 'right');
+    text(String(r.q), tcol.q, y + 28, F(22), '#111', 'right'); y += RH;
+  });
+
+  pages.forEach((p, i) => { g = p.getContext('2d');
+    text(`ÇAKIR REF  •  Sayfa ${i + 1} / ${pages.length}`, PW/2, PH - 44, F(20), '#888', 'center'); });
+  return pages;
+}
+
+function pagesToPdf(cvs){
+  const enc = new TextEncoder(), parts = [], offs = []; let len = 0;
+  const push = b => { if (typeof b === 'string') b = enc.encode(b); parts.push(b); len += b.length; };
+  const obj = (n, body) => { offs[n] = len; push(`${n} 0 obj\n${body}\nendobj\n`); };
+  const N = cvs.length, pageId = i => 3 + 3*i, infoId = 3 + 3*N, PWpt = 595.28, PHpt = 841.89;
+  push('%PDF-1.4\n'); push(new Uint8Array([0x25, 0xE2, 0xE3, 0xCF, 0xD3, 0x0A]));
+  obj(1, '<< /Type /Catalog /Pages 2 0 R >>');
+  obj(2, `<< /Type /Pages /Count ${N} /Kids [${cvs.map((_, i) => pageId(i) + ' 0 R').join(' ')}] >>`);
+  cvs.forEach((c, i) => {
+    const jpg = Uint8Array.from(atob(c.toDataURL('image/jpeg', .92).split(',')[1]), ch => ch.charCodeAt(0));
+    const content = `q ${PWpt} 0 0 ${PHpt} 0 0 cm /Im0 Do Q`;
+    obj(pageId(i), `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PWpt} ${PHpt}] /Resources << /XObject << /Im0 ${pageId(i) + 2} 0 R >> >> /Contents ${pageId(i) + 1} 0 R >>`);
+    obj(pageId(i) + 1, `<< /Length ${content.length} >>\nstream\n${content}\nendstream`);
+    offs[pageId(i) + 2] = len;
+    push(`${pageId(i) + 2} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${c.width} /Height ${c.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);
+    push(jpg); push('\nendstream\nendobj\n');
+  });
+  obj(infoId, '<< /Title (CAKIR REF Olcum Raporu) /Producer (CAKIR REF Uygulamasi) >>');
+  const xref = len, total = infoId + 1;
+  let x = `xref\n0 ${total}\n0000000000 65535 f \n`;
+  for (let n = 1; n < total; n++) x += String(offs[n]).padStart(10, '0') + ' 00000 n \n';
+  push(x + `trailer\n<< /Size ${total} /Root 1 0 R /Info ${infoId} 0 R >>\nstartxref\n${xref}\n%%EOF\n`);
+  return new Blob(parts, { type: 'application/pdf' });
+}
+
+let pdfBusy = false;
+function exportPdf(){
+  if (!S.hist.length) { toast('Rapor için kayıt yok.'); return; }
+  if (pdfBusy) return; pdfBusy = true; $('btnPdf').disabled = true; $('btnPdf').textContent = 'Hazırlanıyor…';
+  setTimeout(() => {   // düğme durumu görünsün diye bir kare bekle
+    try {
+      const blob = pagesToPdf(buildReportPages());
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = 'CAKIR_REF_' + new Date().toISOString().slice(0, 10) + '.pdf'; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      toast('PDF hazırlandı.');
+    } catch (e) { console.error(e); toast('PDF oluşturulamadı: ' + (e.message || e), 6000); }
+    finally { pdfBusy = false; $('btnPdf').disabled = false; $('btnPdf').textContent = 'PDF indir'; }
+  }, 30);
 }
 
 /* ---------- ayarlar ---------- */
@@ -612,7 +741,7 @@ $('btnTime').onclick = () => guarded(() => S.link.writeTime(), 'Telefonun saati 
 $('btnClear').onclick = async () => { if (await ask('Geçmiş silinsin mi?', 'Cihazdaki tüm kayıtlar silinir.')) guarded(async () => { await S.link.command(CMD.clearHist); S.hist = []; renderHist(); }, 'Geçmiş temizlendi.'); };
 $('btnRestart').onclick = async () => { if (await ask('Cihaz yeniden başlatılsın mı?', 'Bağlantı kısa süre kopacak, uygulama yeniden bağlanmayı dener.')) guarded(() => S.link.command(CMD.restart), 'Yeniden başlatma gönderildi.'); };
 $('btnFactory').onclick = async () => { if (await ask('Fabrika ayarına dönülsün mü?', 'Tüm ayarlar ve kalibrasyon sıfırlanır. Bu işlem geri alınamaz.')) guarded(() => S.link.command(CMD.factory), 'Fabrika ayarı gönderildi.'); };
-$('btnCsv').onclick = exportCsv;
+$('btnPdf').onclick = exportPdf;
 $('btnReloadHist').onclick = () => { loadHistory(); toast('Geçmiş isteniyor…', 1500); };
 
 /* ---------- bağlan / kes ---------- */

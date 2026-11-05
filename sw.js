@@ -1,5 +1,5 @@
 /* Çakır REF – çevrimdışı önbellek. Dosyalar değişirse VERSION'ı artırın. */
-const VERSION = 'cakir-BLE-V1.0.5';
+const VERSION = 'cakir-ref-v1.1.0';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon-maskable-512.png'];
 
 self.addEventListener('install', e => {
